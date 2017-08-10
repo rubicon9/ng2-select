@@ -12,6 +12,7 @@ export class HighlightPipe implements PipeTransform {
         let tagRE    = new RegExp('<[^<>]*>', 'ig');
         // get ist of tags
         let tagList  = value.match( tagRE );
+        console.log('transform', value);
         // Replace tags with token
         let tmpValue = value.replace( tagRE, '$!$');
         // Replace search words
@@ -29,5 +30,6 @@ export class HighlightPipe implements PipeTransform {
 export function stripTags(input:string):string {
   let tags = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi;
   let commentsAndPhpTags = /<!--[\s\S]*?-->|<\?(?:php)?[\s\S]*?\?>/gi;
+  console.log('stripTags', input);
   return input.replace(commentsAndPhpTags, '').replace(tags, '');
 }
