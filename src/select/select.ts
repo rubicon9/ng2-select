@@ -125,7 +125,6 @@ let styles = `
   ],
   template: `
   <div tabindex="0"
-     *ngIf="multiple === false"
      (keyup)="mainClick($event)"
      [offClick]="clickedOutside"
      class="ui-select-container dropdown open">
@@ -136,13 +135,13 @@ let styles = `
           class="btn btn-default btn-secondary form-control ui-select-toggle"
           (click)="matchClick($event)"
           style="outline: 0;">
-        <span *ngIf="active.length <= 0" class="ui-select-placeholder text-muted">{{placeholder}}</span>
-        <span *ngIf="active.length > 0" class="ui-select-match-text pull-left"
-              [ngClass]="{'ui-select-allow-clear': allowClear && active.length > 0}"
-              [innerHTML]="active[0].text"></span>
+        <span *ngIf="!activeOption" class="ui-select-placeholder text-muted">{{placeholder}}</span>
+        <span *ngIf="activeOption" class="ui-select-match-text pull-left"
+              [ngClass]="{'ui-select-allow-clear': allowClear && active}"
+              [innerHTML]="getActiveSelector(activeOption)"></span>
         <i class="dropdown-toggle pull-right"></i>
         <i class="caret pull-right"></i>
-        <a *ngIf="allowClear && active.length>0" class="btn btn-xs btn-link pull-right" style="margin-right: 10px; padding: 0;" (click)="removeClick(active[0], $event)">
+        <a *ngIf="allowClear && active" class="btn btn-xs btn-link pull-right" style="margin-right: 10px; padding: 0;" (click)="removeClick(active, $event)">
            <span class="fa fa-remove"></span>
         </a>
       </span>
@@ -153,15 +152,15 @@ let styles = `
            [disabled]="disabled"
            class="form-control ui-select-search"
            *ngIf="inputMode"
-           placeholder="{{active.length <= 0 ? placeholder : ''}}">
+           placeholder="{{!active ? placeholder : ''}}">
      <!-- options template -->
-     <ul *ngIf="optionsOpened && items && items.length > 0"
+     <ul *ngIf="optionsOpened && options && options.length > 0"
           class="ui-select-choices dropdown-menu" role="menu">
-        <li *ngFor="let o of items" role="menuitem">
+        <li *ngFor="let o of options" role="menuitem">
           <div class="ui-select-choices-row"
                [class.active]="isActive(o)"
                (mouseenter)="selectActive(o)"
-               (click)="selectMatch(o, $event)">
+               (click)="selectMatch(o.id, $event)">
             <a href="javascript:void(0)" class="dropdown-item">
               <div [innerHtml]="o.text | highlight:inputValue"></div>
             </a>
@@ -173,7 +172,7 @@ let styles = `
 
   `
 })
-export class SelectComponent implements OnInit, ControlValueAccessor {
+export class SelectComponent implements OnInit, OnChanges, ControlValueAccessor {
   @Input() public allowClear:boolean = false;
   @Input() public placeholder:string = '';
   @Input() public idField:string = 'id';
@@ -181,7 +180,9 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
   @Input() public childrenField:string = 'children';
   @Input() public multiple:boolean = false;
 
-  @Input() private items: Selector[] = [];
+  @Input() public items: Selector[] = [];
+  @Input() public activeOption:string = null;
+
   /*@Input()
   public set items(value:Array<any>) {
     if (!value) {
@@ -208,7 +209,7 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
     return this._disabled;
   }
 
-  
+  public active: Selector = null;
   /*@Input()
   public set active(selectedItems:Array<any>) {
     if (!selectedItems || selectedItems.length === 0) {
@@ -231,18 +232,16 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
   @Output() public removed:EventEmitter<any> = new EventEmitter();
   @Output() public typed:EventEmitter<any> = new EventEmitter();
   @Output() public opened:EventEmitter<any> = new EventEmitter();
+  @Output() public activeOptionChange:EventEmitter<any> = new EventEmitter();
 
   public options:Selector[] = [];
   public itemObjects:Selector[] = [];
-  public activeOption:Selector = {
+  //public activeOption:string = null;
+  /*{
     id: null,
     text: null
-  };
+  };*/
   public element:ElementRef;
-
-  public get active():Array<any> {
-    return this._active;
-  }
 
   private set optionsOpened(value:boolean){
     this._optionsOpened = value;
@@ -262,7 +261,6 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
   private inputValue:string = '';
   private _items:Array<any> = [];
   private _disabled:boolean = false;
-  private _active:Array<SelectItem> = [];
 
   public constructor(element:ElementRef, private sanitizer:DomSanitizer) {
     this.element = element;
@@ -284,16 +282,16 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
       return;
     }
     // backspace
-    if (!isUpMode && e.keyCode === 8) {
+    /*if (!isUpMode && e.keyCode === 8) {
       let el:any = this.element.nativeElement
         .querySelector('div.ui-select-container > input');
       if (!el.value || el.value.length <= 0) {
-        if (this.active.length > 0) {
+        if (this.active) {
           this.remove(this.active[this.active.length - 1]);
         }
         e.preventDefault();
       }
-    }
+    }*/
     // esc
     if (!isUpMode && e.keyCode === 27) {
       this.hideOptions();
@@ -302,12 +300,12 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
       return;
     }
     // del
-    if (!isUpMode && e.keyCode === 46) {
+    /*if (!isUpMode && e.keyCode === 46) {
       if (this.active.length > 0) {
         this.remove(this.active[this.active.length - 1]);
       }
       e.preventDefault();
-    }
+    }*/
     // left
     if (!isUpMode && e.keyCode === 37 && this._items.length > 0) {
       this.behavior.first();
@@ -334,7 +332,7 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
     }
     // enter
     if (!isUpMode && e.keyCode === 13) {
-      if (!this.active.find(a => a.id === this.activeOption.id)) {
+      if (this.active.id !== this.activeOption) {
         this.selectActiveMatch();
         this.behavior.next();
       }
@@ -357,6 +355,45 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
     this.behavior = new GenericBehavior(this);
   }
 
+  public ngOnChanges(changes: SimpleChanges) {
+    // If we get a change in items, reset the options.
+    for (let propName in changes) {
+      if (propName === 'items') {
+        this.options = changes[propName].currentValue;
+        //this.updateActive(changes[propName].currentValue, this.activeOption);
+      }/* else if (propName === 'activeOption') {
+        console.log('new changes => ', changes[propName].currentValue);
+        this.updateActive(this.items, changes[propName].currentValue);
+      }*/
+    }
+  }
+
+  public getActiveSelector(activeId: string): string {
+    let active = '';
+    this.items.forEach(
+      (option) => {
+        if (option.id === activeId) {
+          active = option.text;
+        }
+      }
+    );
+
+    return active;
+  }
+
+  /*private updateActive(items: Selector[], activeId: string) {
+    console.info(items, activeId);
+    if (items.length > 0 && activeId) {
+      items.forEach(
+        (option) => {
+          if (option.id === activeId) {
+            this.active = option;
+          }
+        }
+      );
+    }
+  }*/
+
   /*public ngOnChanges(changes: SimpleChanges) {
     console.log(changes);
     for (let propName in changes) {
@@ -378,21 +415,15 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
     }
   }*/
 
-  public remove(item:SelectItem):void {
+  public remove(item: Selector):void {
     if (this._disabled === true) {
       return;
     }
-    if (this.multiple === true && this.active) {
-      let index = this.active.indexOf(item);
-      this.active.splice(index, 1);
-      this.data.next(this.active);
-      this.doEvent('removed', item);
-    }
-    if (this.multiple === false) {
-      this.active = [];
-      this.data.next(this.active);
-      this.doEvent('removed', item);
-    }
+
+    this.active = null;
+    this.activeOption = null;
+    this.data.next(this.active);
+    this.doEvent('removed', item);
   }
 
   public doEvent(type:string, value:any):void {
@@ -428,7 +459,7 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
       return;
     }
     this.inputMode = !this.inputMode;
-    if (this.inputMode === true && ((this.multiple === true && e) || this.multiple === false)) {
+    if (this.inputMode === true) {
       this.focusToInput();
       this.open();
     }
@@ -464,12 +495,12 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
     this.inputEvent(event);
   }
 
-  protected  selectActive(value:SelectItem):void {
-    this.activeOption = value;
+  protected  selectActive(value:Selector):void {
+    this.activeOption = value.id;
   }
 
   protected  isActive(value:SelectItem):boolean {
-    return this.activeOption.id === value.id;
+    return this.activeOption === value.id;
   }
 
   protected removeClick(value: SelectItem, event: any): void {
@@ -488,9 +519,8 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
   }
 
   private open():void {
-    this.options = this.itemObjects
-      .filter((option:SelectItem) => (this.multiple === false ||
-      this.multiple === true && !this.active.find((o:SelectItem) => option.text === o.text)));
+    /*this.options = this.itemObjects
+      .filter((option:SelectItem) => (this.multiple === false));*/
 
     if (this.options.length > 0) {
       this.behavior.first();
@@ -507,7 +537,7 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
     this.selectMatch(this.activeOption);
   }
 
-  private selectMatch(value:Selector, e:Event = void 0):void {
+  private selectMatch(value: string, e:Event = void 0):void {
     if (e) {
       e.stopPropagation();
       e.preventDefault();
@@ -517,14 +547,29 @@ export class SelectComponent implements OnInit, ControlValueAccessor {
       return;
     }
 
-    this.active[0] = value;
-    this.data.next(this.active[0]);
+    let match: Selector = null;
+    this.items.forEach(
+      (item) => {
+        if (item.id == value) {
+          match = item;
+        }
+      }
+    );
 
-    this.doEvent('selected', value);
-    this.hideOptions();
+    if (match) {
+      this.active = match;
+      this.activeOption = this.active.id;
+      this.activeOptionChange.emit(this.activeOption);
+      this.data.next(this.active);
 
-    this.focusToInput(stripTags(value.text));
-    this.element.nativeElement.querySelector('.ui-select-container').focus();
+      this.doEvent('selected', this.active);
+      this.hideOptions();
+
+      if (this.active) {
+        this.focusToInput(stripTags(this.active.text));
+      }
+      this.element.nativeElement.querySelector('.ui-select-container').focus();
+    }
   }
 }
 
@@ -573,9 +618,17 @@ export class Behavior {
   }
 
   private getActiveIndex(optionsMap:Map<string, number> = void 0):number {
-    let ai = this.actor.options.indexOf(this.actor.activeOption);
+    //let ai = this.actor.options.indexOf(this.actor.activeOption);
+    let ai = 0;
+    this.actor.options.forEach(
+      (option, i) => {
+        if (option.id == this.actor.activeOption) {
+          ai = i;
+        }
+      }
+    );
     if (ai < 0 && optionsMap !== void 0) {
-      ai = optionsMap.get(this.actor.activeOption.id);
+      ai = optionsMap.get(this.actor.activeOption);
     }
     return ai;
   }
@@ -587,39 +640,54 @@ export class GenericBehavior extends Behavior implements OptionsBehavior {
   }
 
   public first():void {
-    this.actor.activeOption = this.actor.options[0];
+    this.actor.activeOption = this.actor.options[0].id;
     super.ensureHighlightVisible();
   }
 
   public last():void {
-    this.actor.activeOption = this.actor.options[this.actor.options.length - 1];
+    this.actor.activeOption = this.actor.options[this.actor.options.length - 1].id;
     super.ensureHighlightVisible();
   }
 
   public prev():void {
-    let index = this.actor.options.indexOf(this.actor.activeOption);
+    let index = 0
+    this.actor.options.forEach(
+      (option, i) => {
+        if (option.id == this.actor.activeOption) {
+          index = i;
+        }
+      }
+    );
+
     this.actor.activeOption = this.actor
-      .options[index - 1 < 0 ? this.actor.options.length - 1 : index - 1];
+      .options[index - 1 < 0 ? this.actor.options.length - 1 : index - 1].id;
     super.ensureHighlightVisible();
   }
 
   public next():void {
-    let index = this.actor.options.indexOf(this.actor.activeOption);
+    let index = 0
+    this.actor.options.forEach(
+      (option, i) => {
+        if (option.id == this.actor.activeOption) {
+          index = i;
+        }
+      }
+    );
+
     this.actor.activeOption = this.actor
-      .options[index + 1 > this.actor.options.length - 1 ? 0 : index + 1];
+      .options[index + 1 > this.actor.options.length - 1 ? 0 : index + 1].id;
     super.ensureHighlightVisible();
   }
 
   public filter(query:RegExp):void {
-    let options = this.actor.itemObjects
-      .filter((option:SelectItem) => {
-        return stripTags(option.text).match(query) &&
-          (this.actor.multiple === false ||
-          (this.actor.multiple === true && this.actor.active.map((item:SelectItem) => item.id).indexOf(option.id) < 0));
+    let options = this.actor.items
+      .filter((item:Selector) => {
+        return stripTags(item.text).match(query);
       });
+
     this.actor.options = options;
     if (this.actor.options.length > 0) {
-      this.actor.activeOption = this.actor.options[0];
+      this.actor.activeOption = this.actor.options[0].id;
       super.ensureHighlightVisible();
     }
   }
