@@ -461,6 +461,7 @@ export class SelectComponent implements OnInit, OnChanges, ControlValueAccessor 
     this.inputMode = !this.inputMode;
     if (this.inputMode === true) {
       this.focusToInput();
+      this.options = this.items;
       this.open();
     }
   }
@@ -496,11 +497,11 @@ export class SelectComponent implements OnInit, OnChanges, ControlValueAccessor 
   }
 
   protected  selectActive(value:Selector):void {
-    this.activeOption = value.id;
+    this.active = value;
   }
 
-  protected  isActive(value:SelectItem):boolean {
-    return this.activeOption === value.id;
+  protected  isActive(value:Selector):boolean {
+    return this.active === value;
   }
 
   protected removeClick(value: SelectItem, event: any): void {
@@ -547,7 +548,7 @@ export class SelectComponent implements OnInit, OnChanges, ControlValueAccessor 
       return;
     }
 
-    let match: Selector = null;
+    /*let match: Selector = null;
     this.items.forEach(
       (item) => {
         if (item.id == value) {
@@ -568,6 +569,20 @@ export class SelectComponent implements OnInit, OnChanges, ControlValueAccessor 
       if (this.active) {
         this.focusToInput(stripTags(this.active.text));
       }
+      this.element.nativeElement.querySelector('.ui-select-container').focus();
+    }*/
+
+    if (this.active) {
+      this.activeOption = this.active.id;
+      this.activeOptionChange.emit(this.activeOption);
+      console.info('click', this.active, this.activeOption);
+      this.data.next(this.active);
+
+      this.doEvent('selected', this.active);
+      this.hideOptions();
+
+      this.focusToInput(stripTags(this.active.text));
+
       this.element.nativeElement.querySelector('.ui-select-container').focus();
     }
   }
@@ -640,12 +655,13 @@ export class GenericBehavior extends Behavior implements OptionsBehavior {
   }
 
   public first():void {
-    this.actor.activeOption = this.actor.options[0].id;
+    //this.actor.activeOption = this.actor.options[0].id;
+    this.actor.active = this.actor.options[0];
     super.ensureHighlightVisible();
   }
 
   public last():void {
-    this.actor.activeOption = this.actor.options[this.actor.options.length - 1].id;
+    this.actor.active = this.actor.options[this.actor.options.length - 1];
     super.ensureHighlightVisible();
   }
 
@@ -653,14 +669,14 @@ export class GenericBehavior extends Behavior implements OptionsBehavior {
     let index = 0
     this.actor.options.forEach(
       (option, i) => {
-        if (option.id == this.actor.activeOption) {
+        if (option == this.actor.active) {
           index = i;
         }
       }
     );
 
-    this.actor.activeOption = this.actor
-      .options[index - 1 < 0 ? this.actor.options.length - 1 : index - 1].id;
+    this.actor.active = this.actor
+      .options[index - 1 < 0 ? this.actor.options.length - 1 : index - 1];
     super.ensureHighlightVisible();
   }
 
@@ -668,14 +684,14 @@ export class GenericBehavior extends Behavior implements OptionsBehavior {
     let index = 0
     this.actor.options.forEach(
       (option, i) => {
-        if (option.id == this.actor.activeOption) {
+        if (option == this.actor.active) {
           index = i;
         }
       }
     );
 
-    this.actor.activeOption = this.actor
-      .options[index + 1 > this.actor.options.length - 1 ? 0 : index + 1].id;
+    this.actor.active = this.actor
+      .options[index + 1 > this.actor.options.length - 1 ? 0 : index + 1];
     super.ensureHighlightVisible();
   }
 
@@ -687,7 +703,7 @@ export class GenericBehavior extends Behavior implements OptionsBehavior {
 
     this.actor.options = options;
     if (this.actor.options.length > 0) {
-      this.actor.activeOption = this.actor.options[0].id;
+      this.actor.active = this.actor.options[0];
       super.ensureHighlightVisible();
     }
   }
